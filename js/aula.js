@@ -260,7 +260,7 @@ const Aula = (() => {
         </div>
         <div id="aula-editor" class="aula-editor"></div>
         <div class="saida-titulo">Terminal do aluno</div>
-        <pre id="det-saida" class="aula-saida"></pre>
+        <pre id="det-saida" class="aula-saida" data-vazio="Vazio. Clique em ▶️ Executar para rodar o código do aluno."></pre>
         <input id="det-entrada" class="entrada-remota hidden" placeholder="O programa está esperando uma entrada (scanf): digite aqui e aperte Enter" />
       </div>`;
     $('#prof-link').onclick = () => {
@@ -626,6 +626,7 @@ const Aula = (() => {
 
   function montarPainelAluno() {
     $('#aula-titulo').textContent = '👩‍🏫 Professor';
+    $('#aula-pane').classList.add('papel-aluno');
     $('#aula-corpo').innerHTML = `
       <div class="aluno-topo">
         <span id="aluno-conexao" class="aula-estado"><span class="ponto cinza"></span> Conectando...</span>
@@ -635,7 +636,7 @@ const Aula = (() => {
         </div>
       </div>
       <div class="aula-abas">
-        <button class="aula-aba ativo" data-aba="codigo">📄 Código do professor</button>
+        <button class="aula-aba ativo" data-aba="codigo" title="Código do professor">📄 Código do professor</button>
         <button class="aula-aba" data-aba="tela">🖥️ Tela <span id="aba-tela-ponto" class="ponto vermelho hidden"></span></button>
         <button class="aula-aba" data-aba="colegas">🤝 Ajudar colegas <span id="aba-colegas-n" class="contador hidden"></span></button>
       </div>
@@ -651,7 +652,7 @@ const Aula = (() => {
         </div>
         <div id="aula-editor" class="aula-editor"></div>
         <div class="saida-titulo">Terminal do professor</div>
-        <pre id="prof-saida" class="aula-saida"></pre>
+        <pre id="prof-saida" class="aula-saida" data-vazio="Vazio. A saída aparece aqui quando o professor executar."></pre>
       </div>
       <div id="aba-tela" class="aula-aba-corpo hidden">
         <div class="tarja-aluno">
@@ -683,7 +684,7 @@ const Aula = (() => {
           </div>
           <div id="colega-editor" class="aula-editor"></div>
           <div class="saida-titulo">Terminal do colega</div>
-          <pre id="colega-saida" class="aula-saida"></pre>
+          <pre id="colega-saida" class="aula-saida" data-vazio="Vazio. Clique em ▶️ Executar para rodar o código do colega."></pre>
           <input id="colega-entrada" class="entrada-remota hidden" placeholder="O programa está esperando uma entrada (scanf): digite aqui e aperte Enter" />
         </div>
       </div>`;
