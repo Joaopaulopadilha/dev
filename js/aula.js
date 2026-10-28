@@ -114,8 +114,17 @@ const Aula = (() => {
   }
 
   // código + terminal de um aluno ocupando a tela inteira, com uma tarja vermelha com o nome dele
-  function telaCheiaAula(ativa) {
+  let cheiaNoNavegador = false; // entrou na tela cheia do navegador junto (sai junto)
+
+  function telaCheiaAula(ativa, navegador = false) {
     document.body.classList.toggle('aula-cheia', ativa);
+    if (ativa && navegador && !document.fullscreenElement && document.documentElement.requestFullscreen) {
+      cheiaNoNavegador = true;
+      document.documentElement.requestFullscreen().catch(() => { cheiaNoNavegador = false; });
+    } else if (!ativa && cheiaNoNavegador) {
+      cheiaNoNavegador = false;
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    }
     const tamanho = ativa ? 16 : 13;
     if (editorAula) editorAula.updateOptions({ fontSize: tamanho });
     if (aluno.editorColega) aluno.editorColega.updateOptions({ fontSize: tamanho });
@@ -123,6 +132,10 @@ const Aula = (() => {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && document.body.classList.contains('aula-cheia')) telaCheiaAula(false);
+  });
+  // o Esc da tela cheia do navegador não chega como tecla: sai junto por aqui
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && cheiaNoNavegador) { cheiaNoNavegador = false; telaCheiaAula(false); }
   });
 
   // troca o texto do modelo sem pular o scroll (setValue volta para o topo)
@@ -627,20 +640,29 @@ const Aula = (() => {
         <button class="aula-aba" data-aba="colegas">🤝 Ajudar colegas <span id="aba-colegas-n" class="contador hidden"></span></button>
       </div>
       <div id="aba-codigo" class="aula-aba-corpo">
+        <div class="tarja-aluno">
+          <span id="codigo-tarja" class="tarja-nome"></span>
+          <button class="aula-btn" data-sair-cheia title="Sair da tela cheia (Esc)">⬅ Voltar</button>
+        </div>
         <div class="detalhe-botoes">
           <span id="prof-arquivo" class="det-arquivo">Aguardando o professor...</span>
           <button class="aula-btn" id="aluno-copiar" title="Cria um arquivo no seu projeto com este código">📋 Copiar para meu projeto</button>
+          <button class="aula-btn" id="codigo-cheia" title="Ver o código do professor na tela inteira">⛶ Tela cheia</button>
         </div>
         <div id="aula-editor" class="aula-editor"></div>
         <div class="saida-titulo">Terminal do professor</div>
         <pre id="prof-saida" class="aula-saida"></pre>
       </div>
       <div id="aba-tela" class="aula-aba-corpo hidden">
+        <div class="tarja-aluno">
+          <span id="tela-tarja" class="tarja-nome"></span>
+          <button class="aula-btn" data-sair-cheia title="Sair da tela cheia (Esc)">⬅ Voltar</button>
+        </div>
         <div class="tela-caixa">
           <video id="aula-video" autoplay playsinline muted></video>
           <div id="tela-msg" class="tela-msg">O professor não está compartilhando a tela agora.</div>
         </div>
-        <div class="detalhe-botoes"><button class="aula-btn" id="tela-cheia">⛶ Ver em tela cheia</button></div>
+        <div class="detalhe-botoes botoes-tela"><button class="aula-btn" id="tela-cheia">⛶ Ver em tela cheia</button></div>
       </div>
       <div id="aba-colegas" class="aula-aba-corpo hidden">
         <div id="colegas-lista" class="colegas-lista"></div>
@@ -685,13 +707,19 @@ const Aula = (() => {
     $('#colega-encerrar').onclick = () => {
       if (aluno.ajudando) aluno.sala.enviar({ t: 'ajuda-fim', alvo: aluno.ajudando.alvo });
     };
-    $('#tela-cheia').onclick = () => {
-      const v = $('#aula-video');
-      if (v.requestFullscreen) v.requestFullscreen().catch(() => {});
-    };
+    // tela cheia com a tarja vermelha: o aluno não confunde a tela do professor com a dele
+    $('#tela-cheia').onclick = () => telaCheiaAula(true, true);
+    $('#codigo-cheia').onclick = () => telaCheiaAula(true);
+    atualizarTarjasProfessor();
+    for (const b of document.querySelectorAll('[data-sair-cheia]')) b.onclick = () => telaCheiaAula(false);
     criarEditorAula($('#aula-editor'));
     aluno.modelo = monaco.editor.createModel('', 'c');
     editorAula.setModel(aluno.modelo);
+  }
+
+  function atualizarTarjasProfessor() {
+    $('#tela-tarja').textContent = `🖥️ Tela do professor ${aluno.nomeProfessor} — não é o seu computador`;
+    $('#codigo-tarja').textContent = `📄 Código do professor ${aluno.nomeProfessor} — o seu está no editor ao lado`;
   }
 
   function mostrarAba(aba) {
@@ -718,6 +746,7 @@ const Aula = (() => {
   function tratarMensagemProfessor(m) {
     if (m.t === 'boas-vindas') {
       aluno.nomeProfessor = m.professor || 'Professor';
+      atualizarTarjasProfessor();
       definirConexao('conectado', `Conectado à aula de ${aluno.nomeProfessor}`);
       $('#aula-titulo').textContent = '👩‍🏫 ' + aluno.nomeProfessor;
     } else if (m.t === 'prof-codigo') {

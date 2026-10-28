@@ -754,3 +754,7 @@ body.aula-cheia .aula-saida { height: 38vh; font-size: 15px; }
 body.aula-cheia .entrada-remota { font-size: 15px; padding: 8px 10px; }
 body.aula-cheia .saida-titulo { font-size: 12px; }
 .botao-cheia { margin-left: auto; }
+
+/* tela do professor em tela cheia: o vídeo ocupa tudo abaixo da tarja */
+body.aula-cheia .botoes-tela { display: none; }
+body.aula-cheia #codigo-cheia { display: none; }
