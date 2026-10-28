@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<!-- Habilita "cross-origin isolation" no GitHub Pages (que não deixa configurar cabeçalhos HTTP):
+     necessário para scanf/input() interativos. Roda antes de tudo. -->
+<script src="coi-serviceworker.js"></script>
+<title>Dev — Aula de programação</title>
+<meta name="description" content="Editor estilo VS Code no navegador para aulas de programação: C (Clang) e Python, com o professor transmitindo código e tela para a turma." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💻</text></svg>" />
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<div id="titlebar">
+  <div class="titlebar-left">
+    <button class="tb-btn" id="btn-toggle-sidebar" title="Mostrar/ocultar explorador">🗂️</button>
+    <span class="brand">💻 Dev</span>
+    <span id="project-name" class="project-name"></span>
+  </div>
+  <div class="titlebar-actions">
+    <button class="tb-btn tb-run" id="btn-run" title="Compilar e executar o arquivo aberto (F5 ou Ctrl+Enter)">▶️ Executar</button>
+    <button class="tb-btn tb-stop hidden" id="btn-stop" title="Parar o programa">⏹️ Parar</button>
+    <span class="tb-sep"></span>
+    <button class="tb-btn" id="btn-new-file" title="Novo arquivo">📄 Novo arquivo</button>
+    <button class="tb-btn" id="btn-import" title="Importar uma pasta do computador">⬆️ Importar</button>
+    <button class="tb-btn" id="btn-export-zip" title="Baixar o projeto como .zip">⬇️ Baixar .zip</button>
+    <button class="tb-btn" id="btn-reset" title="Começar um projeto novo (apaga o atual)">🆕 Novo projeto</button>
+    <span class="tb-sep"></span>
+    <button class="tb-btn" id="btn-toggle-terminal" title="Mostrar/ocultar terminal (Ctrl+`)">🖥️ Terminal</button>
+    <button class="tb-btn hidden" id="btn-toggle-aula" title="Mostrar/ocultar o painel da aula">👥 Aula</button>
+    <button class="tb-btn" id="btn-fullscreen" title="Tela cheia">⛶</button>
+  </div>
+</div>
+
+<div id="app-body">
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <span>Explorador</span>
+      <div class="sidebar-header-actions">
+        <button class="icon-btn" id="side-new-file" title="Novo arquivo">📄</button>
+        <button class="icon-btn" id="side-new-folder" title="Nova pasta">📁</button>
+      </div>
+    </div>
+    <div id="file-tree" class="file-tree"></div>
+  </aside>
+
+  <div class="resizer" id="resizer-1"></div>
+
+  <div id="workbench">
+    <div id="edit-area">
+      <section id="editor-pane">
+        <div id="banner-travado" class="banner-travado hidden"></div>
+        <div id="tabs" class="tabs"></div>
+        <div id="monaco-container"></div>
+      </section>
+
+      <div class="resizer hidden" id="resizer-2"></div>
+
+      <section id="aula-pane" class="hidden">
+        <div class="preview-header">
+          <span id="aula-titulo">Aula</span>
+        </div>
+        <div id="aula-corpo"></div>
+      </section>
+    </div>
+
+    <div class="resizer resizer-horizontal" id="resizer-3"></div>
+
+    <section id="terminal-panel">
+      <div class="preview-header">
+        <span>🖥️ Terminal</span>
+        <div class="preview-actions">
+          <button class="icon-btn" id="btn-run-terminal" title="Compilar e executar (F5)">▶️ Executar</button>
+          <button class="icon-btn hidden" id="btn-stop-terminal" title="Parar o programa">⏹️ Parar</button>
+          <button class="icon-btn" id="btn-clear-console" title="Limpar">🗑️</button>
+          <button class="icon-btn" id="btn-close-terminal" title="Fechar terminal">✕</button>
+        </div>
+      </div>
+      <div id="terminal"></div>
+    </section>
+  </div>
+</div>
+
+<div id="statusbar">
+  <span id="status-mode">💾 Salvo neste navegador</span>
+  <span id="status-lang"></span>
+  <span id="status-compilador">⬇️ Compilador C...</span>
+  <span id="status-msg"></span>
+</div>
+
+<input type="file" id="import-input" webkitdirectory directory multiple style="display:none" />
+
+<!-- tela de entrada: aluno, professor ou praticar sozinho -->
+<div id="entrada" class="hidden">
+  <div class="entrada-caixa">
+    <h1>💻 Dev</h1>
+    <p class="entrada-sub">Programe em C e Python direto no navegador.<br>Na aula, o professor transmite o código e a tela para a turma.</p>
+    <label class="entrada-campo">Seu nome
+      <input id="ent-nome" maxlength="30" autocomplete="off" />
+    </label>
+    <div class="ent-papeis">
+      <button data-papel="aluno">🎒 Sou aluno</button>
+      <button data-papel="professor">👩‍🏫 Sou professor</button>
+      <button data-papel="sozinho">🧪 Praticar sozinho</button>
+    </div>
+    <div id="ent-sala-bloco" class="hidden">
+      <label class="entrada-campo"><span id="ent-sala-rotulo-texto">Código da sala</span>
+        <input id="ent-sala" maxlength="16" autocomplete="off" placeholder="ex.: turma1" />
+      </label>
+      <button id="ent-entrar" class="ent-entrar">Entrar</button>
+    </div>
+    <p id="ent-erro" class="ent-erro"></p>
+  </div>
+</div>
+
+<div id="modal-overlay" class="hidden">
+  <div id="modal-box">
+    <div id="modal-title"></div>
+    <input type="text" id="modal-input" />
+    <div id="modal-error"></div>
+    <div class="modal-actions">
+      <button id="modal-cancel">Cancelar</button>
+      <button id="modal-ok">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="context-menu" class="hidden"></div>
+
+<div id="toast" class="hidden"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+<script src="js/vfs.js"></script>
+<script src="js/templates.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/zip.js"></script>
+<script src="js/terminal.js"></script>
+<script src="js/diagnosticos.js"></script>
+<script src="js/c-runner.js"></script>
+<script src="js/python.js"></script>
+<script src="js/sala.js"></script>
+<script src="js/tela.js"></script>
+<script src="js/aula.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
