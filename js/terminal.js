@@ -66,6 +66,7 @@ const Terminal = (() => {
       entradaAtual = { input, resolver };
       rolar();
       input.focus();
+      aoMudar(); // quem acompanha de longe (professor/colega) fica sabendo que o programa espera entrada
       input.addEventListener('keydown', (e) => {
         const fim = e.ctrlKey && (e.key === 'd' || e.key === 'D' || e.key === 'z' || e.key === 'Z');
         if (e.key !== 'Enter' && !fim) return;
@@ -81,6 +82,22 @@ const Terminal = (() => {
         resolver(valor + '\n');
       });
     });
+  }
+
+  // entrada digitada por quem está ajudando (professor ou colega), como se fosse aqui
+  function enviarEntrada(texto) {
+    if (!entradaAtual) return false;
+    const { input, resolver } = entradaAtual;
+    input.remove();
+    entradaAtual = null;
+    const linhaDigitada = String(texto).replace(/\r?\n$/, '') + '\n';
+    escrever(linhaDigitada, 'entrada');
+    resolver(linhaDigitada);
+    return true;
+  }
+
+  function aguardandoEntrada() {
+    return !!entradaAtual;
   }
 
   function cancelarEntrada() {
@@ -103,5 +120,5 @@ const Terminal = (() => {
     return t.length > max ? t.slice(-max) : t;
   }
 
-  return { init, escrever, linha, pedirEntrada, cancelarEntrada, limpar, textoRecente };
+  return { init, escrever, linha, pedirEntrada, enviarEntrada, aguardandoEntrada, cancelarEntrada, limpar, textoRecente };
 })();

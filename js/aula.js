@@ -223,6 +223,7 @@ const Aula = (() => {
           <span id="det-status" class="det-status"></span>
         </div>
         <div class="detalhe-botoes">
+          <button class="aula-btn" id="det-executar" title="Compila e executa no computador do aluno; a saída aparece abaixo">▶️ Executar</button>
           <button class="aula-btn" id="det-editar">✍️ Editar o código dele</button>
           <button class="aula-btn hidden" id="det-mao">✋ Baixar a mão</button>
           <span id="det-arquivo" class="det-arquivo"></span>
@@ -230,6 +231,7 @@ const Aula = (() => {
         <div id="aula-editor" class="aula-editor"></div>
         <div class="saida-titulo">Terminal do aluno</div>
         <pre id="det-saida" class="aula-saida"></pre>
+        <input id="det-entrada" class="entrada-remota hidden" placeholder="O programa está esperando uma entrada (scanf): digite aqui e aperte Enter" />
       </div>`;
     $('#prof-link').onclick = () => {
       navigator.clipboard.writeText(link).then(() => App.toast('Link da aula copiado: ' + link), () => App.toast(link));
@@ -262,6 +264,15 @@ const Aula = (() => {
       }
     };
     $('#det-voltar').onclick = () => abrirAluno(null);
+    $('#det-executar').onclick = () => {
+      const a = prof.alunos.get(prof.aberto);
+      if (!a) return;
+      if (prof.controlando === a.id) enviarEdicaoAgora(); // a última correção chega antes de rodar
+      prof.sala.enviar(a.id, { t: 'executar-remoto', arquivo: a.estado && a.estado.arquivo, por: 'O professor' });
+    };
+    ligarEntradaRemota($('#det-entrada'), (texto) => {
+      if (prof.aberto) prof.sala.enviar(prof.aberto, { t: 'entrada-remota', texto });
+    });
     $('#det-editar').onclick = () => alternarControle();
     $('#det-mao').onclick = () => {
       const a = prof.alunos.get(prof.aberto);
@@ -311,6 +322,12 @@ const Aula = (() => {
     } else if (m.t === 'ajuda-fim') {
       const ajuda = prof.ajudas.get(m.alvo);
       if (ajuda && ajuda.ajudante === a.id) encerrarAjuda(m.alvo, '', true);
+    } else if (m.t === 'ajuda-executar') {
+      const ajuda = prof.ajudas.get(m.alvo);
+      if (ajuda && ajuda.ajudante === a.id) prof.sala.enviar(m.alvo, { t: 'executar-remoto', arquivo: ajuda.arquivo, por: aluno.nome });
+    } else if (m.t === 'ajuda-entrada' && typeof m.texto === 'string') {
+      const ajuda = prof.ajudas.get(m.alvo);
+      if (ajuda && ajuda.ajudante === a.id) prof.sala.enviar(m.alvo, { t: 'entrada-remota', texto: m.texto });
     }
   }
 
@@ -457,6 +474,25 @@ const Aula = (() => {
       saida.textContent = e.saida || '';
       saida.scrollTop = saida.scrollHeight;
     }
+    mostrarCampoEntrada($('#det-entrada'), e.aguardando);
+  }
+
+  // campo para digitar a entrada (scanf) do programa que roda no computador de outra pessoa
+  function ligarEntradaRemota(input, enviar) {
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();
+      enviar(input.value);
+      input.value = '';
+      input.classList.add('hidden'); // volta a aparecer se o programa pedir mais
+    });
+  }
+
+  function mostrarCampoEntrada(input, aguardando) {
+    if (!input) return;
+    const estava = !input.classList.contains('hidden');
+    input.classList.toggle('hidden', !aguardando);
+    if (aguardando && !estava) input.focus();
   }
 
   function alternarControle() {
@@ -592,11 +628,13 @@ const Aula = (() => {
           </div>
           <div class="detalhe-botoes">
             <span id="colega-arquivo" class="det-arquivo"></span>
+            <button class="aula-btn ativo" id="colega-executar" title="Compila e executa no computador do colega; a saída aparece abaixo">▶️ Executar</button>
             <button class="aula-btn perigo" id="colega-encerrar" title="Devolve o editor e baixa a mão do colega">✅ Terminei de ajudar</button>
           </div>
           <div id="colega-editor" class="aula-editor"></div>
           <div class="saida-titulo">Terminal do colega</div>
           <pre id="colega-saida" class="aula-saida"></pre>
+          <input id="colega-entrada" class="entrada-remota hidden" placeholder="O programa está esperando uma entrada (scanf): digite aqui e aperte Enter" />
         </div>
       </div>`;
     for (const b of document.querySelectorAll('.aula-aba')) b.onclick = () => mostrarAba(b.dataset.aba);
@@ -606,6 +644,14 @@ const Aula = (() => {
       if (!aluno.modelo || !aluno.modelo.getValue()) return;
       App.copiarParaProjeto(aluno.arquivoProfessor, aluno.modelo.getValue());
     };
+    $('#colega-executar').onclick = () => {
+      if (!aluno.ajudando) return;
+      enviarEdicaoColegaAgora(); // a última correção chega antes de rodar
+      aluno.sala.enviar({ t: 'ajuda-executar', alvo: aluno.ajudando.alvo });
+    };
+    ligarEntradaRemota($('#colega-entrada'), (texto) => {
+      if (aluno.ajudando) aluno.sala.enviar({ t: 'ajuda-entrada', alvo: aluno.ajudando.alvo, texto });
+    });
     $('#colega-encerrar').onclick = () => {
       if (aluno.ajudando) aluno.sala.enviar({ t: 'ajuda-fim', alvo: aluno.ajudando.alvo });
     };
@@ -657,6 +703,11 @@ const Aula = (() => {
     } else if (m.t === 'mao-baixada') {
       if (aluno.mao) { aluno.mao = false; definirMao(false); }
       if (m.por) App.toast(`✅ ${m.por} terminou de te ajudar.`);
+    } else if (m.t === 'executar-remoto') {
+      App.toast(`▶️ ${m.por || 'Alguém'} executou o seu código.`);
+      App.executarArquivo(m.arquivo);
+    } else if (m.t === 'entrada-remota' && typeof m.texto === 'string') {
+      Terminal.enviarEntrada(m.texto);
     } else if (m.t === 'ajuda-lista') {
       aluno.pedidos = (m.pedidos || []).filter((p) => p.id !== aluno.sala.peerId);
       aluno.ajudaLiberada = m.liberada !== false;
@@ -728,10 +779,11 @@ const Aula = (() => {
     App.toast(`Você está editando o código de ${m.nome}. Ele vê cada mudança ao vivo.`);
   }
 
-  const enviarEdicaoColega = limitar(() => {
+  function enviarEdicaoColegaAgora() {
     if (!aluno.ajudando || !aluno.editorColega) return;
     aluno.sala.enviar({ t: 'ajuda-edita', alvo: aluno.ajudando.alvo, codigo: aluno.editorColega.getModel().getValue() });
-  }, INTERVALO_EDICAO_MS);
+  }
+  const enviarEdicaoColega = limitar(enviarEdicaoColegaAgora, INTERVALO_EDICAO_MS);
 
   // status, erros e terminal do colega (o código não: quem está editando sou eu)
   function mostrarEstadoColega(e) {
@@ -752,6 +804,7 @@ const Aula = (() => {
       saida.textContent = e.saida || '';
       saida.scrollTop = saida.scrollHeight;
     }
+    mostrarCampoEntrada($('#colega-entrada'), e.aguardando);
   }
 
   function terminarDeAjudar(motivo) {
@@ -823,6 +876,7 @@ const Aula = (() => {
       status: x.status,
       erros: x.erros,
       saida: Terminal.textoRecente(3000),
+      aguardando: Terminal.aguardandoEntrada(),
     });
   }
   const enviarEstadoAlunoLimitado = limitar(enviarEstadoAluno, INTERVALO_ALUNO_MS);

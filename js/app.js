@@ -856,6 +856,15 @@
       el.bannerTravado.textContent = `✍️ ${nomeProfessor || 'O professor'} está editando o seu código. Acompanhe as mudanças; o editor volta para você quando ele terminar.`;
     },
 
+    // professor/colega pediu para rodar o código deste aluno (o resultado aparece no terminal daqui e volta para ele)
+    executarArquivo(caminho) {
+      const node = caminho && VFS.resolveRelative('root', caminho);
+      const id = node && node.type === 'file' ? node.id : Editor.getActiveId();
+      if (state.rodando) stopRun();
+      openTerminal();
+      runFile(id);
+    },
+
     abrirArquivo(caminho) {
       const node = VFS.resolveRelative('root', caminho);
       if (!node || node.type !== 'file') return;
