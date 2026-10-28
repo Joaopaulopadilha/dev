@@ -127,9 +127,10 @@ const Editor = (() => {
         'editor.background': '#1e1e1e',
       },
     });
+    monaco.editor.defineTheme('estudo-light', { base: 'vs', inherit: true, rules: [], colors: {} });
 
     monacoEditor = monaco.editor.create(container, {
-      theme: 'estudo-dark',
+      theme: temaMonaco(),
       automaticLayout: true,
       fontSize: 14,
       minimap: { enabled: true },
@@ -285,8 +286,14 @@ const Editor = (() => {
     monacoEditor.focus();
   }
 
+  // o tema do Monaco é global: todos os editores (o meu, o do professor, o do colega) mudam juntos
+  function temaMonaco() {
+    return document.documentElement.classList.contains('tema-claro') ? 'estudo-light' : 'estudo-dark';
+  }
+
   return {
     init,
+    temaMonaco,
     open,
     activate,
     close,

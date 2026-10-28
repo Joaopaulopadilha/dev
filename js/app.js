@@ -184,6 +184,14 @@
     el.btnFullscreen.textContent = document.fullscreenElement ? '⛶ Sair' : '⛶';
   });
 
+  function definirTema(claro) {
+    document.documentElement.classList.toggle('tema-claro', claro);
+    localStorage.setItem('dev_aula_tema', claro ? 'claro' : 'escuro');
+    $('#btn-tema').textContent = claro ? '🌙' : '☀️';
+    $('#btn-tema').title = claro ? 'Mudar para o tema escuro' : 'Mudar para o tema claro';
+    if (window.monaco) monaco.editor.setTheme(Editor.temaMonaco()); // antes do Monaco carregar, o Editor.init já usa o tema certo
+  }
+
   function setupTreeContextMenu() {
     el.tree.addEventListener('contextmenu', (e) => {
       if (e.target !== el.tree) return;
@@ -714,6 +722,8 @@
   function setupToolbar() {
     el.btnToggleSidebar.addEventListener('click', toggleSidebar);
     el.btnFullscreen.addEventListener('click', toggleFullscreen);
+    $('#btn-tema').addEventListener('click', () => definirTema(!document.documentElement.classList.contains('tema-claro')));
+    definirTema(document.documentElement.classList.contains('tema-claro'));
     $('#btn-new-file').addEventListener('click', () => beginCreate(rootOrSelectedFolder(), 'file'));
     $('#side-new-file').addEventListener('click', () => beginCreate(rootOrSelectedFolder(), 'file'));
     $('#side-new-folder').addEventListener('click', () => beginCreate(rootOrSelectedFolder(), 'folder'));

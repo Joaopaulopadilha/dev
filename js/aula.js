@@ -101,7 +101,7 @@ const Aula = (() => {
 
   function criarEditorAula(container) {
     editorAula = monaco.editor.create(container, {
-      theme: 'estudo-dark',
+      theme: Editor.temaMonaco(),
       readOnly: true,
       automaticLayout: true,
       fontSize: 13,
@@ -821,7 +821,7 @@ const Aula = (() => {
     aluno.ajudando = { alvo: m.alvo, nome: m.nome, arquivo: e.arquivo };
     if (!aluno.editorColega) {
       aluno.editorColega = monaco.editor.create($('#colega-editor'), {
-        theme: 'estudo-dark', automaticLayout: true, fontSize: 13, minimap: { enabled: false },
+        theme: Editor.temaMonaco(), automaticLayout: true, fontSize: 13, minimap: { enabled: false },
         scrollBeyondLastLine: false, lineNumbersMinChars: 3, tabSize: 4,
       });
       aluno.editorColega.onDidChangeModelContent(() => { if (aluno.ajudando) enviarEdicaoColega(); });
