@@ -113,6 +113,18 @@ const Aula = (() => {
     return editorAula;
   }
 
+  // código + terminal de um aluno ocupando a tela inteira, com uma tarja vermelha com o nome dele
+  function telaCheiaAula(ativa) {
+    document.body.classList.toggle('aula-cheia', ativa);
+    const tamanho = ativa ? 16 : 13;
+    if (editorAula) editorAula.updateOptions({ fontSize: tamanho });
+    if (aluno.editorColega) aluno.editorColega.updateOptions({ fontSize: tamanho });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.body.classList.contains('aula-cheia')) telaCheiaAula(false);
+  });
+
   // troca o texto do modelo sem pular o scroll (setValue volta para o topo)
   function atualizarModelo(model, texto) {
     if (model.getValue() === texto) return;
@@ -217,10 +229,15 @@ const Aula = (() => {
       <div id="prof-resumo" class="prof-resumo"></div>
       <div id="prof-lista" class="prof-lista"></div>
       <div id="prof-detalhe" class="aula-detalhe hidden">
+        <div class="tarja-aluno">
+          <span id="det-tarja" class="tarja-nome"></span>
+          <button class="aula-btn" id="det-tarja-voltar" title="Sair da tela cheia (Esc)">⬅ Voltar</button>
+        </div>
         <div class="detalhe-topo">
           <button class="aula-btn" id="det-voltar">⬅ Turma</button>
           <span id="det-nome" class="det-nome"></span>
           <span id="det-status" class="det-status"></span>
+          <button class="aula-btn botao-cheia" id="det-cheia" title="Ver o código e o terminal do aluno na tela inteira">⛶ Tela cheia</button>
         </div>
         <div class="detalhe-botoes">
           <button class="aula-btn" id="det-executar" title="Compila e executa no computador do aluno; a saída aparece abaixo">▶️ Executar</button>
@@ -264,6 +281,8 @@ const Aula = (() => {
       }
     };
     $('#det-voltar').onclick = () => abrirAluno(null);
+    $('#det-cheia').onclick = () => telaCheiaAula(true);
+    $('#det-tarja-voltar').onclick = () => telaCheiaAula(false);
     $('#det-executar').onclick = () => {
       const a = prof.alunos.get(prof.aberto);
       if (!a) return;
@@ -426,7 +445,10 @@ const Aula = (() => {
 
   function abrirAluno(id) {
     if (prof.controlando && prof.controlando !== id) soltarControle();
+    if (!id) telaCheiaAula(false);
     prof.aberto = id;
+    // com um aluno aberto, o topo da sala some para sobrar espaço para o código e o terminal dele
+    $('#aula-corpo').classList.toggle('com-detalhe', !!id);
     $('#prof-lista').classList.toggle('hidden', !!id);
     $('#prof-resumo').classList.toggle('hidden', !!id);
     $('#prof-detalhe').classList.toggle('hidden', !id);
@@ -446,6 +468,7 @@ const Aula = (() => {
     const [cor, texto] = descreverStatus(a.estado);
     $('#det-nome').textContent = a.nome;
     $('#det-status').innerHTML = `<span class="ponto ${cor}"></span> ${esc(texto)}`;
+    $('#det-tarja').innerHTML = `👀 ${esc(a.nome)} <span class="tarja-status">${esc(texto)}</span>`;
     $('#det-mao').classList.toggle('hidden', !a.mao);
     const controlando = prof.controlando === id;
     $('#det-editar').textContent = controlando ? '↩️ Devolver o editor' : '✍️ Editar o código dele';
@@ -622,9 +645,14 @@ const Aula = (() => {
       <div id="aba-colegas" class="aula-aba-corpo hidden">
         <div id="colegas-lista" class="colegas-lista"></div>
         <div id="colega-ajuda" class="aula-detalhe hidden">
+          <div class="tarja-aluno">
+            <span id="colega-tarja" class="tarja-nome"></span>
+            <button class="aula-btn" id="colega-tarja-voltar" title="Sair da tela cheia (Esc)">⬅ Voltar</button>
+          </div>
           <div class="detalhe-topo">
             <span id="colega-nome" class="det-nome"></span>
             <span id="colega-status" class="det-status"></span>
+            <button class="aula-btn botao-cheia" id="colega-cheia" title="Ver o código e o terminal do colega na tela inteira">⛶ Tela cheia</button>
           </div>
           <div class="detalhe-botoes">
             <span id="colega-arquivo" class="det-arquivo"></span>
@@ -644,6 +672,8 @@ const Aula = (() => {
       if (!aluno.modelo || !aluno.modelo.getValue()) return;
       App.copiarParaProjeto(aluno.arquivoProfessor, aluno.modelo.getValue());
     };
+    $('#colega-cheia').onclick = () => telaCheiaAula(true);
+    $('#colega-tarja-voltar').onclick = () => telaCheiaAula(false);
     $('#colega-executar').onclick = () => {
       if (!aluno.ajudando) return;
       enviarEdicaoColegaAgora(); // a última correção chega antes de rodar
@@ -770,6 +800,7 @@ const Aula = (() => {
     aluno.editorColega.setModel(monaco.editor.createModel(e.codigo || '', e.linguagem || linguagemDe(e.arquivo)));
     if (antigo) antigo.dispose();
     $('#colega-nome').textContent = `Ajudando ${m.nome}`;
+    $('#colega-tarja').textContent = `🤝 Ajudando ${m.nome}`;
     $('#colega-arquivo').textContent = e.arquivo ? '📄 ' + e.arquivo : '';
     $('#colegas-lista').classList.add('hidden');
     $('#colega-ajuda').classList.remove('hidden');
@@ -810,6 +841,7 @@ const Aula = (() => {
   function terminarDeAjudar(motivo) {
     if (!aluno.ajudando) return;
     aluno.ajudando = null;
+    telaCheiaAula(false);
     $('#colega-ajuda').classList.add('hidden');
     $('#colegas-lista').classList.remove('hidden');
     renderColegas();
