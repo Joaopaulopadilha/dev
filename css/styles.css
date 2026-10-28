@@ -233,7 +233,15 @@ button {
   cursor: row-resize;
 }
 
+/* editor + terminal à esquerda; o painel da aula ocupa a altura toda à direita */
 #workbench {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+#edit-area {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -241,16 +249,10 @@ button {
   overflow: hidden;
 }
 
-#edit-area {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  overflow: hidden;
-}
-
 #editor-pane {
   flex: 1;
   min-width: 200px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -568,7 +570,7 @@ button {
   #app-body.sidebar-open #workbench { display: none; }
 
   /* painel da aula e editor empilham em vez de ficar lado a lado */
-  #edit-area { flex-direction: column; }
+  #workbench { flex-direction: column; }
   #aula-pane {
     width: 100% !important;
     height: 45%;
@@ -688,11 +690,11 @@ span.vermelho { color: #f14c4c; }
 .detalhe-botoes { display: flex; align-items: center; gap: 6px; padding: 6px 12px; flex-wrap: wrap; }
 .det-arquivo { font-size: 12px; color: var(--text-dim); margin-right: auto; }
 .aula-btn.hidden { display: none; }
-.aula-editor { flex: 1; min-height: 120px; border-top: 1px solid #1e1e1e; }
+.aula-editor { flex: 1; min-height: 160px; border-top: 1px solid #1e1e1e; }
 .saida-titulo { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); padding: 6px 12px 2px; }
 .aula-saida {
   margin: 0; height: 120px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 6px 12px;
-  font-family: Consolas, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; flex-shrink: 0;
+  font-family: Consolas, monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; flex-shrink: 1; min-height: 48px;
 }
 .aula-abas { display: flex; border-bottom: 1px solid #1e1e1e; }
 .aula-aba {

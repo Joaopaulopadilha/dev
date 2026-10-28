@@ -56,29 +56,29 @@
         <div id="monaco-container"></div>
       </section>
 
-      <div class="resizer hidden" id="resizer-2"></div>
+      <div class="resizer resizer-horizontal" id="resizer-3"></div>
 
-      <section id="aula-pane" class="hidden">
+      <section id="terminal-panel">
         <div class="preview-header">
-          <span id="aula-titulo">Aula</span>
+          <span>🖥️ Terminal</span>
+          <div class="preview-actions">
+            <button class="icon-btn" id="btn-run-terminal" title="Compilar e executar (F5)">▶️ Executar</button>
+            <button class="icon-btn hidden" id="btn-stop-terminal" title="Parar o programa">⏹️ Parar</button>
+            <button class="icon-btn" id="btn-clear-console" title="Limpar">🗑️</button>
+            <button class="icon-btn" id="btn-close-terminal" title="Fechar terminal">✕</button>
+          </div>
         </div>
-        <div id="aula-corpo"></div>
+        <div id="terminal"></div>
       </section>
     </div>
 
-    <div class="resizer resizer-horizontal" id="resizer-3"></div>
+    <div class="resizer hidden" id="resizer-2"></div>
 
-    <section id="terminal-panel">
+    <section id="aula-pane" class="hidden">
       <div class="preview-header">
-        <span>🖥️ Terminal</span>
-        <div class="preview-actions">
-          <button class="icon-btn" id="btn-run-terminal" title="Compilar e executar (F5)">▶️ Executar</button>
-          <button class="icon-btn hidden" id="btn-stop-terminal" title="Parar o programa">⏹️ Parar</button>
-          <button class="icon-btn" id="btn-clear-console" title="Limpar">🗑️</button>
-          <button class="icon-btn" id="btn-close-terminal" title="Fechar terminal">✕</button>
-        </div>
+        <span id="aula-titulo">Aula</span>
       </div>
-      <div id="terminal"></div>
+      <div id="aula-corpo"></div>
     </section>
   </div>
 </div>
