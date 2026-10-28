@@ -10,7 +10,8 @@ Editor estilo VS Code (base do [CAPS Studio](https://github.com/Joaopaulopadilha
   - **Transmitir código:** o arquivo aberto e o terminal do professor aparecem ao vivo para os alunos, em texto (nítido, leve, dá para copiar).
   - **Compartilhar tela:** vídeo da tela inteira. O professor envia direto para 5 alunos e cada um repassa para até 3 colegas (árvore), então uma turma de 40 não pesa no computador do professor.
   - **Turma:** cada aluno aparece com um sinal: verde (compilou e rodou), vermelho (erro de compilação), laranja (erro ao executar), ✋ (pediu ajuda). Clicar no aluno mostra o código e o terminal dele ao vivo; **✍️ Editar o código dele** trava o editor do aluno e deixa o professor corrigir junto.
-- **Aluno:** escolhe "Sou aluno", digita o código da sala (ou abre o link) e programa no próprio editor. O painel da direita mostra o código e a tela do professor; **📋 Copiar para meu projeto** traz o código do professor como um arquivo novo; **✋ Pedir ajuda** avisa o professor.
+- **Aluno:** escolhe "Sou aluno", digita o código da sala (ou abre o link) e programa no próprio editor. O painel da direita mostra o código e a tela do professor; **📋 Copiar para meu projeto** traz o código do professor como um arquivo novo.
+- **✋ Pedir ajuda:** o pedido aparece para o professor e para a turma inteira (aba **🤝 Ajudar colegas**). Qualquer colega pode clicar em **Ajudar**: abre o código de quem pediu, edita ao vivo (o editor de quem pediu fica travado enquanto isso) e vê o terminal dele. **✅ Terminei de ajudar** devolve o editor e baixa a mão. Um ajudante por pedido; o professor vê no card quem está ajudando quem, pode assumir no lugar e pode desligar a ajuda entre colegas (**🤝 Colegas podem ajudar**).
 - Recarregar a página volta para a mesma aula; se a conexão cair, aluno e professor religam sozinhos.
 
 ## Executar

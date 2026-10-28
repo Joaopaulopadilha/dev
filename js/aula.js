@@ -145,6 +145,8 @@ const Aula = (() => {
     controlando: null, // id do aluno cujo código estou editando
     modelos: new Map(), // id -> monaco model
     ultimoEnviado: '',
+    ajudaLiberada: true, // alunos podem atender os pedidos de ajuda dos colegas
+    ajudas: new Map(),   // id de quem pediu -> { ajudante, arquivo }
   };
 
   function iniciarProfessor() {
@@ -173,12 +175,17 @@ const Aula = (() => {
         prof.ultimoEnviado = '';
         enviarCodigoProfessor(true);
         if (prof.tela) prof.tela.alunoEntrou(a.id);
+        anunciarPedidos();
         renderLista();
       },
       aoAlunoSaiu: (a) => {
         if (prof.tela) prof.tela.alunoSaiu(a.id);
         if (prof.controlando === a.id) prof.controlando = null;
+        // quem saiu estava sendo ajudado, ou ajudando alguém: encerra (e devolve o editor do colega)
+        if (prof.ajudas.has(a.id)) encerrarAjuda(a.id, `${a.nome} saiu da aula.`);
+        for (const [alvo, aj] of [...prof.ajudas]) if (aj.ajudante === a.id) encerrarAjuda(alvo);
         prof.alunos.delete(a.id);
+        anunciarPedidos();
         const modelo = prof.modelos.get(a.id);
         if (modelo && prof.aberto !== a.id) { modelo.dispose(); prof.modelos.delete(a.id); }
         if (prof.aberto === a.id) renderDetalhe();
@@ -202,6 +209,7 @@ const Aula = (() => {
           <button class="aula-btn" id="prof-link" title="${esc(link)}">🔗 Copiar link</button>
           <button class="aula-btn" id="prof-tela">🖥️ Compartilhar tela</button>
           <button class="aula-btn ativo" id="prof-codigo" title="Os alunos veem o seu arquivo aberto, ao vivo">📡 Transmitindo código</button>
+          <button class="aula-btn ativo" id="prof-ajuda" title="Qualquer aluno pode atender o pedido de ajuda (✋) de um colega e editar o código dele">🤝 Colegas podem ajudar</button>
           <button class="aula-btn" id="prof-sair">🚪 Encerrar</button>
         </div>
         <div id="prof-estado" class="aula-estado">Abrindo a sala...</div>
@@ -237,6 +245,13 @@ const Aula = (() => {
       if (prof.transmitirCodigo) { prof.ultimoEnviado = ''; enviarCodigoProfessor(true); }
       else prof.sala.transmitir({ t: 'prof-codigo', pausado: true });
     };
+    $('#prof-ajuda').onclick = () => {
+      prof.ajudaLiberada = !prof.ajudaLiberada;
+      $('#prof-ajuda').classList.toggle('ativo', prof.ajudaLiberada);
+      $('#prof-ajuda').textContent = prof.ajudaLiberada ? '🤝 Colegas podem ajudar' : '🤝 Só o professor ajuda';
+      if (!prof.ajudaLiberada) for (const alvo of [...prof.ajudas.keys()]) encerrarAjuda(alvo, 'O professor desativou a ajuda entre colegas.');
+      anunciarPedidos();
+    };
     $('#prof-tela').onclick = async () => {
       if (prof.tela.ativa) { prof.tela.parar(); return; }
       try {
@@ -253,6 +268,8 @@ const Aula = (() => {
       if (!a) return;
       a.mao = false;
       prof.sala.enviar(a.id, { t: 'mao-baixada' });
+      encerrarAjuda(a.id, 'O professor encerrou o pedido de ajuda.');
+      anunciarPedidos();
       renderDetalhe();
       renderLista();
     };
@@ -274,15 +291,79 @@ const Aula = (() => {
     if (!aluno) return;
     if (m.t === 'estado') {
       aluno.estado = m;
+      const ajuda = prof.ajudas.get(a.id);
+      if (ajuda) prof.sala.enviar(ajuda.ajudante, { ...m, t: 'ajuda-estado', alvo: a.id });
       if (prof.aberto === a.id) renderDetalhe();
       renderListaLimitado();
     } else if (m.t === 'mao') {
       const antes = aluno.mao;
       aluno.mao = !!m.ativa;
       if (aluno.mao && !antes) App.toast(`✋ ${aluno.nome} pediu ajuda.`);
+      if (!aluno.mao) encerrarAjuda(a.id, `${aluno.nome} encerrou o pedido de ajuda.`);
+      anunciarPedidos();
       if (prof.aberto === a.id) renderDetalhe();
       renderLista();
+    } else if (m.t === 'ajudar' && typeof m.alvo === 'string') {
+      iniciarAjuda(a.id, m.alvo);
+    } else if (m.t === 'ajuda-edita' && typeof m.codigo === 'string') {
+      const ajuda = prof.ajudas.get(m.alvo);
+      if (ajuda && ajuda.ajudante === a.id) prof.sala.enviar(m.alvo, { t: 'prof-edita', arquivo: ajuda.arquivo, codigo: m.codigo });
+    } else if (m.t === 'ajuda-fim') {
+      const ajuda = prof.ajudas.get(m.alvo);
+      if (ajuda && ajuda.ajudante === a.id) encerrarAjuda(m.alvo, '', true);
     }
+  }
+
+  /* ---- ajuda entre colegas: o professor só repassa as mensagens (já está ligado a todos) ---- */
+
+  function nomeDe(id) {
+    const a = prof.alunos.get(id);
+    return a ? a.nome : 'Um colega';
+  }
+
+  function anunciarPedidos() {
+    if (!prof.sala) return;
+    const pedidos = [...prof.alunos.values()].filter((a) => a.mao).map((a) => {
+      const ajuda = prof.ajudas.get(a.id);
+      return { id: a.id, nome: a.nome, ajudante: ajuda ? nomeDe(ajuda.ajudante) : '', professor: prof.controlando === a.id };
+    });
+    prof.sala.transmitir({ t: 'ajuda-lista', pedidos, liberada: prof.ajudaLiberada });
+  }
+
+  function iniciarAjuda(ajudanteId, alvoId) {
+    const alvo = prof.alunos.get(alvoId);
+    const recusar = (motivo) => prof.sala.enviar(ajudanteId, { t: 'ajuda-recusada', motivo });
+    if (!alvo || alvoId === ajudanteId || !prof.alunos.has(ajudanteId)) return recusar('Esse pedido não existe mais.');
+    if (!prof.ajudaLiberada) return recusar('O professor desativou a ajuda entre colegas.');
+    if (!alvo.mao) return recusar(`${alvo.nome} não está mais pedindo ajuda.`);
+    if (prof.controlando === alvoId) return recusar(`O professor já está ajudando ${alvo.nome}.`);
+    const atual = prof.ajudas.get(alvoId);
+    if (atual && atual.ajudante !== ajudanteId) return recusar(`${nomeDe(atual.ajudante)} já está ajudando ${alvo.nome}.`);
+    if (!alvo.estado || !alvo.estado.arquivo) return recusar(`${alvo.nome} não tem nenhum arquivo aberto.`);
+    // quem ajuda atende um colega por vez
+    for (const [outro, aj] of [...prof.ajudas]) if (aj.ajudante === ajudanteId && outro !== alvoId) encerrarAjuda(outro);
+    prof.ajudas.set(alvoId, { ajudante: ajudanteId, arquivo: alvo.estado.arquivo });
+    prof.sala.enviar(alvoId, { t: 'controle', ativo: true, arquivo: alvo.estado.arquivo, professor: nomeDe(ajudanteId) });
+    prof.sala.enviar(ajudanteId, { t: 'ajuda-inicio', alvo: alvoId, nome: alvo.nome, estado: alvo.estado });
+    anunciarPedidos();
+    renderLista();
+  }
+
+  // termina a ajuda de um colega; "resolvido" = quem ajudou terminou: baixa a mão de quem pediu
+  function encerrarAjuda(alvoId, motivo = '', resolvido = false) {
+    const ajuda = prof.ajudas.get(alvoId);
+    if (!ajuda) return;
+    prof.ajudas.delete(alvoId);
+    prof.sala.enviar(alvoId, { t: 'controle', ativo: false });
+    prof.sala.enviar(ajuda.ajudante, { t: 'ajuda-fim', motivo });
+    const alvo = prof.alunos.get(alvoId);
+    if (resolvido && alvo && alvo.mao) {
+      alvo.mao = false;
+      prof.sala.enviar(alvoId, { t: 'mao-baixada', por: nomeDe(ajuda.ajudante) });
+    }
+    anunciarPedidos();
+    renderLista();
+    if (prof.aberto === alvoId) renderDetalhe();
   }
 
   const STATUS = {
@@ -314,7 +395,9 @@ const Aula = (() => {
       ? `<b>${alunos.length}</b> aluno(s) · <span class="verde">● ${ok} ok</span> · <span class="vermelho">● ${comErro} com erro</span>${maos ? ` · ✋ <b>${maos}</b> pedindo ajuda` : ''}`
       : 'Nenhum aluno conectado ainda.';
     lista.innerHTML = alunos.map((a) => {
-      const [cor, texto] = descreverStatus(a.estado);
+      const [cor, textoStatus] = descreverStatus(a.estado);
+      const ajuda = prof.ajudas.get(a.id);
+      const texto = ajuda ? `🤝 ${nomeDe(ajuda.ajudante)} está ajudando` : textoStatus;
       return `<div class="aluno-card${a.mao ? ' mao' : ''}${prof.controlando === a.id ? ' controlando' : ''}" data-id="${esc(a.id)}">
         <span class="ponto ${cor}"></span>
         <span class="aluno-nome">${a.mao ? '✋ ' : ''}${esc(a.nome)}</span>
@@ -380,9 +463,11 @@ const Aula = (() => {
     if (prof.controlando === prof.aberto) { soltarControle(); return; }
     const a = prof.alunos.get(prof.aberto);
     if (!a || !a.estado || !a.estado.arquivo) { App.toast('Espere o código do aluno aparecer.', true); return; }
+    if (prof.ajudas.has(a.id)) encerrarAjuda(a.id, `O professor assumiu a ajuda de ${a.nome}.`);
     prof.controlando = a.id;
     prof.arquivoControle = a.estado.arquivo;
     prof.sala.enviar(a.id, { t: 'controle', ativo: true, arquivo: a.estado.arquivo, professor: nome });
+    anunciarPedidos();
     renderDetalhe();
     renderLista();
     editorAula.focus();
@@ -394,6 +479,7 @@ const Aula = (() => {
     enviarEdicaoAgora();
     prof.controlando = null;
     prof.sala.enviar(id, { t: 'controle', ativo: false });
+    anunciarPedidos();
     renderDetalhe();
     renderLista();
   }
@@ -436,6 +522,11 @@ const Aula = (() => {
     decoracoes: [],
     aba: 'codigo',
     travado: false,
+    // ajuda entre colegas
+    pedidos: [],
+    ajudaLiberada: true,
+    ajudando: null,     // { alvo, nome, arquivo } enquanto eu ajudo um colega
+    editorColega: null,
   };
 
   function iniciarAluno() {
@@ -452,6 +543,7 @@ const Aula = (() => {
         definirConexao('desconectado', 'Conexão com o professor perdida, tentando de novo...');
         if (aluno.travado) destravar();
         aluno.tela.encerrar();
+        if (aluno.ajudando) terminarDeAjudar('A conexão caiu: a ajuda foi encerrada.');
       },
       aoEstado: (texto) => definirConexao('tentando', texto),
       aoMensagem: (m) => tratarMensagemProfessor(m),
@@ -472,7 +564,8 @@ const Aula = (() => {
       </div>
       <div class="aula-abas">
         <button class="aula-aba ativo" data-aba="codigo">📄 Código do professor</button>
-        <button class="aula-aba" data-aba="tela">🖥️ Tela do professor <span id="aba-tela-ponto" class="ponto vermelho hidden"></span></button>
+        <button class="aula-aba" data-aba="tela">🖥️ Tela <span id="aba-tela-ponto" class="ponto vermelho hidden"></span></button>
+        <button class="aula-aba" data-aba="colegas">🤝 Ajudar colegas <span id="aba-colegas-n" class="contador hidden"></span></button>
       </div>
       <div id="aba-codigo" class="aula-aba-corpo">
         <div class="detalhe-botoes">
@@ -489,6 +582,22 @@ const Aula = (() => {
           <div id="tela-msg" class="tela-msg">O professor não está compartilhando a tela agora.</div>
         </div>
         <div class="detalhe-botoes"><button class="aula-btn" id="tela-cheia">⛶ Ver em tela cheia</button></div>
+      </div>
+      <div id="aba-colegas" class="aula-aba-corpo hidden">
+        <div id="colegas-lista" class="colegas-lista"></div>
+        <div id="colega-ajuda" class="aula-detalhe hidden">
+          <div class="detalhe-topo">
+            <span id="colega-nome" class="det-nome"></span>
+            <span id="colega-status" class="det-status"></span>
+          </div>
+          <div class="detalhe-botoes">
+            <span id="colega-arquivo" class="det-arquivo"></span>
+            <button class="aula-btn perigo" id="colega-encerrar" title="Devolve o editor e baixa a mão do colega">✅ Terminei de ajudar</button>
+          </div>
+          <div id="colega-editor" class="aula-editor"></div>
+          <div class="saida-titulo">Terminal do colega</div>
+          <pre id="colega-saida" class="aula-saida"></pre>
+        </div>
       </div>`;
     for (const b of document.querySelectorAll('.aula-aba')) b.onclick = () => mostrarAba(b.dataset.aba);
     $('#aluno-sair').onclick = sairDaAula;
@@ -496,6 +605,9 @@ const Aula = (() => {
     $('#aluno-copiar').onclick = () => {
       if (!aluno.modelo || !aluno.modelo.getValue()) return;
       App.copiarParaProjeto(aluno.arquivoProfessor, aluno.modelo.getValue());
+    };
+    $('#colega-encerrar').onclick = () => {
+      if (aluno.ajudando) aluno.sala.enviar({ t: 'ajuda-fim', alvo: aluno.ajudando.alvo });
     };
     $('#tela-cheia').onclick = () => {
       const v = $('#aula-video');
@@ -509,8 +621,7 @@ const Aula = (() => {
   function mostrarAba(aba) {
     aluno.aba = aba;
     for (const b of document.querySelectorAll('.aula-aba')) b.classList.toggle('ativo', b.dataset.aba === aba);
-    $('#aba-codigo').classList.toggle('hidden', aba !== 'codigo');
-    $('#aba-tela').classList.toggle('hidden', aba !== 'tela');
+    for (const nomeAba of ['codigo', 'tela', 'colegas']) $('#aba-' + nomeAba).classList.toggle('hidden', aba !== nomeAba);
     if (aba === 'tela') $('#aba-tela-ponto').classList.add('hidden');
   }
 
@@ -545,12 +656,111 @@ const Aula = (() => {
       if (aluno.travado && typeof m.codigo === 'string') App.aplicarCodigoExterno(m.arquivo, m.codigo);
     } else if (m.t === 'mao-baixada') {
       if (aluno.mao) { aluno.mao = false; definirMao(false); }
+      if (m.por) App.toast(`✅ ${m.por} terminou de te ajudar.`);
+    } else if (m.t === 'ajuda-lista') {
+      aluno.pedidos = (m.pedidos || []).filter((p) => p.id !== aluno.sala.peerId);
+      aluno.ajudaLiberada = m.liberada !== false;
+      renderColegas();
+    } else if (m.t === 'ajuda-recusada') {
+      App.toast(m.motivo || 'Não foi possível ajudar agora.', true);
+    } else if (m.t === 'ajuda-inicio') {
+      comecarAAjudar(m);
+    } else if (m.t === 'ajuda-estado') {
+      if (aluno.ajudando && aluno.ajudando.alvo === m.alvo) mostrarEstadoColega(m);
+    } else if (m.t === 'ajuda-fim') {
+      terminarDeAjudar(m.motivo || 'Ajuda encerrada.');
     } else if (m.t === 'aula-encerrada') {
       App.toast('O professor encerrou a aula.');
       definirConexao('desconectado', 'O professor encerrou a aula.');
     } else if (m.t && m.t.startsWith('tela-')) {
       aluno.tela.mensagem(m);
     }
+  }
+
+  /* ---- ajudar colegas ---- */
+
+  function renderColegas() {
+    const lista = $('#colegas-lista');
+    if (!lista) return;
+    const abertos = aluno.pedidos.filter((p) => !p.ajudante && !p.professor).length;
+    const contador = $('#aba-colegas-n');
+    contador.textContent = abertos;
+    contador.classList.toggle('hidden', !abertos || !aluno.ajudaLiberada);
+    if (!aluno.ajudaLiberada) {
+      lista.innerHTML = '<p class="colegas-vazio">O professor desativou a ajuda entre colegas por enquanto.</p>';
+      return;
+    }
+    if (!aluno.pedidos.length) {
+      lista.innerHTML = '<p class="colegas-vazio">Ninguém está pedindo ajuda agora.<br>Quando um colega clicar em ✋ Pedir ajuda, ele aparece aqui e você pode abrir o código dele para ajudar.</p>';
+      return;
+    }
+    lista.innerHTML = aluno.pedidos.map((p) => {
+      const ocupado = p.professor ? '👩‍🏫 o professor está ajudando' : p.ajudante ? `🤝 ${esc(p.ajudante)} está ajudando` : '';
+      const meu = aluno.ajudando && aluno.ajudando.alvo === p.id;
+      return `<div class="colega-card${meu ? ' controlando' : ''}">
+        <span class="aluno-nome">✋ ${esc(p.nome)}</span>
+        ${ocupado ? `<span class="aluno-status">${ocupado}</span>` : `<button class="aula-btn ativo" data-ajudar="${esc(p.id)}">Ajudar</button>`}
+      </div>`;
+    }).join('');
+    for (const b of lista.querySelectorAll('[data-ajudar]')) b.onclick = () => aluno.sala.enviar({ t: 'ajudar', alvo: b.dataset.ajudar });
+  }
+
+  function comecarAAjudar(m) {
+    const e = m.estado || {};
+    aluno.ajudando = { alvo: m.alvo, nome: m.nome, arquivo: e.arquivo };
+    if (!aluno.editorColega) {
+      aluno.editorColega = monaco.editor.create($('#colega-editor'), {
+        theme: 'estudo-dark', automaticLayout: true, fontSize: 13, minimap: { enabled: false },
+        scrollBeyondLastLine: false, lineNumbersMinChars: 3, tabSize: 4,
+      });
+      aluno.editorColega.onDidChangeModelContent(() => { if (aluno.ajudando) enviarEdicaoColega(); });
+    }
+    const antigo = aluno.editorColega.getModel();
+    aluno.editorColega.setModel(monaco.editor.createModel(e.codigo || '', e.linguagem || linguagemDe(e.arquivo)));
+    if (antigo) antigo.dispose();
+    $('#colega-nome').textContent = `Ajudando ${m.nome}`;
+    $('#colega-arquivo').textContent = e.arquivo ? '📄 ' + e.arquivo : '';
+    $('#colegas-lista').classList.add('hidden');
+    $('#colega-ajuda').classList.remove('hidden');
+    mostrarEstadoColega(e);
+    mostrarAba('colegas');
+    aluno.editorColega.focus();
+    App.toast(`Você está editando o código de ${m.nome}. Ele vê cada mudança ao vivo.`);
+  }
+
+  const enviarEdicaoColega = limitar(() => {
+    if (!aluno.ajudando || !aluno.editorColega) return;
+    aluno.sala.enviar({ t: 'ajuda-edita', alvo: aluno.ajudando.alvo, codigo: aluno.editorColega.getModel().getValue() });
+  }, INTERVALO_EDICAO_MS);
+
+  // status, erros e terminal do colega (o código não: quem está editando sou eu)
+  function mostrarEstadoColega(e) {
+    const texto = { editando: 'editando', compilando: 'compilando...', rodando: 'executando', ok: '✓ compilou e rodou', erro: '✗ erro de compilação', 'erro-execucao': '✗ erro ao executar' }[e.status] || '';
+    $('#colega-status').textContent = texto;
+    const modelo = aluno.editorColega && aluno.editorColega.getModel();
+    if (modelo) {
+      monaco.editor.setModelMarkers(modelo, 'colega', (e.erros || [])
+        .filter((x) => x.arquivo === (aluno.ajudando && aluno.ajudando.arquivo) && x.nivel !== 'nota')
+        .map((x) => ({
+          startLineNumber: x.linha, startColumn: x.coluna, endLineNumber: x.linha, endColumn: x.coluna + 1,
+          message: x.dica ? `${x.mensagem}\n💡 ${x.dica}` : x.mensagem,
+          severity: x.nivel === 'erro' ? monaco.MarkerSeverity.Error : monaco.MarkerSeverity.Warning,
+        })));
+    }
+    const saida = $('#colega-saida');
+    if (saida.textContent !== (e.saida || '')) {
+      saida.textContent = e.saida || '';
+      saida.scrollTop = saida.scrollHeight;
+    }
+  }
+
+  function terminarDeAjudar(motivo) {
+    if (!aluno.ajudando) return;
+    aluno.ajudando = null;
+    $('#colega-ajuda').classList.add('hidden');
+    $('#colegas-lista').classList.remove('hidden');
+    renderColegas();
+    if (motivo) App.toast(motivo);
   }
 
   function destravar() {
@@ -588,11 +798,11 @@ const Aula = (() => {
       v.srcObject = stream;
       v.play().catch(() => {});
       msg.classList.add('hidden');
-      if (aluno.aba !== 'tela') mostrarAba('tela');
+      if (aluno.aba !== 'tela' && !aluno.ajudando) mostrarAba('tela');
     } else if (aguardando) {
       msg.textContent = 'O professor começou a compartilhar a tela. Conectando ao vídeo...';
       msg.classList.remove('hidden');
-      if (aluno.aba !== 'tela') { $('#aba-tela-ponto').classList.remove('hidden'); mostrarAba('tela'); }
+      if (aluno.aba !== 'tela') { $('#aba-tela-ponto').classList.remove('hidden'); if (!aluno.ajudando) mostrarAba('tela'); }
     } else {
       v.srcObject = null;
       msg.textContent = 'O professor não está compartilhando a tela agora.';
